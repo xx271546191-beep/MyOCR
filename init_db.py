@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.db.session import engine, SessionLocal
 from app.db import models
 from app.services.embedding_service import embed_text
+from app.core.config import settings
 
 # 创建所有表
 print("Creating tables...")
@@ -48,8 +49,8 @@ try:
         embedding_vector = embed_text(test_chunk.text_content)
         test_embedding = models.Embedding(
             chunk_id=test_chunk.id,
-            embedding_model="BAAI/bge-m3",
-            embedding=str(embedding_vector)
+            embedding_model=settings.EMBEDDING_MODEL_NAME,
+            embedding=embedding_vector
         )
         db.add(test_embedding)
         

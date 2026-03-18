@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from app.db import models
 from app.services import embedding_service
 import numpy as np
+import json
+import ast
+from app.core.config import settings
 
 
 class RetrievalService:
@@ -36,8 +38,8 @@ class RetrievalService:
 
         embedding = models.Embedding(
             chunk_id=chunk.id,
-            embedding_model="qwen3-vl-embedding",
-            embedding=str(embedding_vector)
+            embedding_model=settings.EMBEDDING_MODEL_NAME,
+            embedding=embedding_vector
         )
         self.db.add(embedding)
         self.db.commit()
@@ -53,6 +55,42 @@ class RetrievalService:
         if norm1 == 0 or norm2 == 0:
             return 0.0
         return float(dot_product / (norm1 * norm2))
+
+    def _coerce_vector(self, raw: Any) -> Optional[List[float]]:
+        """
+        Accepts either:
+        - list[float] (new JSON storage)
+        - str (legacy storage like "[0.1, 0.2, ...]")
+        Returns list[float] or None when invalid.
+        """
+        if raw is None:
+            return None
+
+        if isinstance(raw, list):
+            if raw and all(isinstance(x, (int, float)) for x in raw):
+                return [float(x) for x in raw]
+            return None
+
+        if isinstance(raw, str):
+            s = raw.strip()
+            if not s:
+                return None
+            # Prefer strict JSON first.
+            try:
+                parsed = json.loads(s)
+            except Exception:
+                parsed = None
+            if parsed is None:
+                # Legacy string repr: use safe literal parsing (NOT eval).
+                try:
+                    parsed = ast.literal_eval(s)
+                except Exception:
+                    return None
+            if isinstance(parsed, list) and parsed and all(isinstance(x, (int, float)) for x in parsed):
+                return [float(x) for x in parsed]
+            return None
+
+        return None
 
     def search_similar_chunks(
         self,
@@ -93,13 +131,8 @@ class RetrievalService:
 
         results = []
         for chunk, embedding in chunk_embeddings:
-            # 解析嵌入向量
-            try:
-                chunk_vector = eval(embedding.embedding)
-                # 计算余弦相似度
-                score = self._cosine_similarity(query_vector, chunk_vector)
-            except:
-                score = 0.0
+            chunk_vector = self._coerce_vector(embedding.embedding)
+            score = self._cosine_similarity(query_vector, chunk_vector) if chunk_vector else 0.0
             
             results.append({
                 "chunk_id": str(chunk.id),
@@ -133,13 +166,8 @@ class RetrievalService:
 
         results = []
         for chunk, embedding in chunk_embeddings:
-            # 解析嵌入向量
-            try:
-                chunk_vector = eval(embedding.embedding)
-                # 计算余弦相似度
-                score = self._cosine_similarity(vector, chunk_vector)
-            except:
-                score = 0.0
+            chunk_vector = self._coerce_vector(embedding.embedding)
+            score = self._cosine_similarity(vector, chunk_vector) if chunk_vector else 0.0
             
             results.append({
                 "chunk_id": str(chunk.id),
