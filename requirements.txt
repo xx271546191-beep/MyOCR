@@ -6,3 +6,8 @@ pydantic-settings
 python-dotenv
 openai
 httpx
+huggingface_hub
+numpy
+langgraph
+python-multipart
+google-genai
