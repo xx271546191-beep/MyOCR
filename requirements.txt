@@ -11,3 +11,6 @@ numpy
 langgraph
 python-multipart
 google-genai
+psycopg[binary]
+pgvector
+alembic

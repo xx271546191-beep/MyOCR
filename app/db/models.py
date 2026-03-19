@@ -31,20 +31,24 @@ class Chunk(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     file = relationship("File", back_populates="chunks")
-    embeddings = relationship("Embedding", back_populates="chunk")
+    embeddings = relationship("Embedding", back_populates="chunk", cascade="all, delete-orphan")
 
 
 class Embedding(Base):
     __tablename__ = "embeddings"
 
     id = Column(Integer, primary_key=True, index=True)
-    chunk_id = Column(Integer, ForeignKey("chunks.id"), nullable=False)
+    chunk_id = Column(Integer, ForeignKey("chunks.id"), nullable=False, index=True)
     embedding_model = Column(String(100))
-    # Store vector safely as JSON array (SQLite will persist as TEXT internally).
     embedding = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chunk = relationship("Chunk", back_populates="embeddings")
+
+    def get_embedding_vector(self):
+        if isinstance(self.embedding, list):
+            return self.embedding
+        return None
 
 
 class QueryLog(Base):
