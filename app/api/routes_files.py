@@ -10,6 +10,11 @@ from app.core.config import settings
 
 router = APIRouter()
 
+SUPPORTED_TEXT_TYPES = {".txt", ".md", ".json", ".csv"}
+SUPPORTED_PDF_TYPE = ".pdf"
+IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".gif"}
+
+
 def _split_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be > 0")
@@ -30,20 +35,60 @@ def _split_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str
         start = end - overlap
     return chunks
 
+
 def _backend_root() -> Path:
-    # backend/app/api/routes_files.py -> backend/
     return Path(__file__).resolve().parents[2]
+
+
+def _extract_text_from_pdf(file_content: bytes) -> str:
+    try:
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(file_content))
+        text_parts = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                text_parts.append(text)
+        return "\n".join(text_parts)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"PDF parsing failed: {str(e)}"
+        )
+
 
 async def _read_text_from_upload(file: UploadFile) -> Tuple[str, str]:
     filename = file.filename or "uploaded"
     suffix = Path(filename).suffix.lower()
     raw = await file.read()
-    if suffix in (".txt", ".md", ".json", ".csv") or (file.content_type or "").startswith("text/"):
+
+    if suffix in SUPPORTED_TEXT_TYPES or (file.content_type or "").startswith("text/"):
         return raw.decode("utf-8", errors="ignore"), "text"
-    raise HTTPException(status_code=400, detail="Only plain text files are supported in this demo (/upload)")
+
+    if suffix == SUPPORTED_PDF_TYPE or file.content_type == "application/pdf":
+        text = _extract_text_from_pdf(raw)
+        if not text or not text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="PDF contains no extractable text"
+            )
+        return text, "pdf"
+
+    if suffix in IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Image OCR is not supported yet. Please upload text or PDF files."
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Unsupported file type. Please upload .txt, .md, .json, .csv, or .pdf files."
+    )
+
 
 @router.post("/files/upload")
-@router.post("/upload")  # backward compatible
+@router.post("/upload")
 async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
     text_content, file_type = await _read_text_from_upload(file)
 

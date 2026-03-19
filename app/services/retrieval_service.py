@@ -9,7 +9,9 @@ from app.core.config import settings
 class RetrievalService:
     def __init__(self, db: Session):
         self.db = db
-        self._use_pgvector = settings.DATABASE_URL.startswith("postgresql")
+
+    def _is_postgres(self) -> bool:
+        return settings.DATABASE_URL.startswith("postgresql")
 
     def save_chunk_with_embedding(
         self,
@@ -93,10 +95,10 @@ class RetrievalService:
     ) -> List[Dict[str, Any]]:
         query_vector = embedding_service.embed_text(query)
 
-        if self._use_pgvector:
+        if self._is_postgres():
             return self._search_pgvector(query_vector, file_id, top_k)
         else:
-            return self._search_fallback(query_vector, file_id, top_k)
+            return self._search_python_fallback(query_vector, file_id, top_k)
 
     def _search_pgvector(
         self,
@@ -104,25 +106,23 @@ class RetrievalService:
         file_id: Optional[int] = None,
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
-        embedding_dim = len(query_vector)
-
         query_text = "[" + ",".join(str(x) for x in query_vector) + "]"
 
-        sql = text("""
+        sql = """
             SELECT c.id as chunk_id, c.file_id, c.page_no, c.text_content,
                    c.image_path, c.bbox, c.metadata_json,
                    1 - (e.embedding <=> :query_vec::vector) as score
             FROM chunks c
             JOIN embeddings e ON c.id = e.chunk_id
             WHERE e.embedding IS NOT NULL
-        """)
+        """
 
         if file_id:
-            sql = text(str(sql) + f" AND c.file_id = {file_id}")
+            sql += f" AND c.file_id = {file_id}"
 
-        sql = text(str(sql) + f" ORDER BY score DESC LIMIT {top_k}")
+        sql += f" ORDER BY score DESC LIMIT {top_k}"
 
-        result = self.db.execute(sql, {"query_vec": query_text})
+        result = self.db.execute(text(sql), {"query_vec": query_text})
 
         rows = result.fetchall()
         print(f"pgvector found {len(rows)} similar chunks")
@@ -156,7 +156,7 @@ class RetrievalService:
 
         return results
 
-    def _search_fallback(
+    def _search_python_fallback(
         self,
         query_vector: List[float],
         file_id: Optional[int] = None,
@@ -211,7 +211,7 @@ class RetrievalService:
         file_id: Optional[int] = None,
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
-        if self._use_pgvector:
+        if self._is_postgres():
             return self._search_pgvector(vector, file_id, top_k)
         else:
-            return self._search_fallback(vector, file_id, top_k)
+            return self._search_python_fallback(vector, file_id, top_k)

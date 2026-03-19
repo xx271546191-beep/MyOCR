@@ -3,6 +3,13 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base
 
+try:
+    from pgvector.sqlalchemy import Vector
+    VECTOR_DIM = 1024
+    VECTOR_TYPE = Column(Vector(VECTOR_DIM), nullable=False)
+except ImportError:
+    VECTOR_TYPE = Column(JSON, nullable=False)
+
 
 class File(Base):
     __tablename__ = "files"
@@ -40,7 +47,7 @@ class Embedding(Base):
     id = Column(Integer, primary_key=True, index=True)
     chunk_id = Column(Integer, ForeignKey("chunks.id"), nullable=False, index=True)
     embedding_model = Column(String(100))
-    embedding = Column(JSON, nullable=False)
+    embedding = VECTOR_TYPE
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chunk = relationship("Chunk", back_populates="embeddings")
