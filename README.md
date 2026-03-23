@@ -1,103 +1,103 @@
-# RouteRAG Backend
+# RouteRAG 后端服务
 
-RouteRAG backend is a FastAPI service for a fiber-route drawing RAG demo. It covers file upload, parsing, chunking, embedding, retrieval QA, structured extraction, topology summarization, and review-oriented overview aggregation.
+RouteRAG 后端是一个基于 FastAPI 的光缆路由图 RAG 演示服务，覆盖文件上传、解析、切块、向量化、检索问答、结构化抽取、关系恢复摘要，以及面向复核的聚合展示能力。
 
-## Current Scope
+## 项目当前范围
 
-This repository is the backend codebase for the demo. The current implementation already includes:
+本仓库是项目的后端代码仓库。当前已经落地的核心能力包括：
 
-- file upload and manual re-ingest
-- text / PDF parsing
-- chunking and embedding storage
-- retrieval QA with citations
-- structured extraction with `cable_route_v1`
-- file-level `precheck` and `risk_notice`
-- `topology_summary` for relation recovery
-- structured relation-first QA for `prev_node` / `next_node` questions
-- `cross_page_hint` for multi-page relation review
-- `review_summary` for complex sample review focus
-- file-level `overview` and query history interfaces
+- 文件上传与手动重新入库
+- 文本 / PDF 解析
+- 文本切块与向量存储
+- 带引用来源的检索问答
+- 基于 `cable_route_v1` 的结构化抽取
+- 文件级 `precheck` 预检结果与 `risk_notice` 风险提示
+- 用于关系恢复的 `topology_summary`
+- 面向 `prev_node` / `next_node` 等问题的关系优先问答
+- 面向多页关系复核的 `cross_page_hint`
+- 面向复杂样本复核的 `review_summary`
+- 文件级 `overview` 聚合接口与查询历史接口
 
-The backend is in a demo/MVP stage. It is designed to be explainable and review-friendly, not to pretend full automation on all complex engineering drawings.
+当前后端处于演示验证阶段，重点是让结果可解释、可复核，而不是对所有复杂工程图都假设为完全自动化处理。
 
-## Tech Stack
+## 技术栈
 
 - Python
 - FastAPI
 - SQLAlchemy
 - PostgreSQL + pgvector
-- SQLite fallback for local tests
-- OpenAI-compatible / Hugging Face / Google model providers
+- SQLite 本地回退
+- OpenAI 兼容 / Hugging Face / Google 模型提供方
 - LangGraph
 
-## Repository Layout
+## 仓库结构
 
 ```text
 backend/
 |-- app/
-|   |-- api/           # FastAPI routes
-|   |-- core/          # settings and config
-|   |-- db/            # models and session
-|   |-- prompts/       # extraction prompts
-|   |-- rag/           # QA graph
-|   |-- schemas/       # response/request schemas
-|   `-- services/      # parser, ingest, retrieval, extraction, review logic
-|-- scripts/           # verification and utility scripts
-|-- storage/           # uploaded files and local artifacts
+|   |-- api/           # FastAPI 路由
+|   |-- core/          # 配置与设置
+|   |-- db/            # 数据模型与会话
+|   |-- prompts/       # 抽取提示词
+|   |-- rag/           # 问答图编排
+|   |-- schemas/       # 请求与响应模型
+|   `-- services/      # 解析、入库、检索、抽取、复核等服务
+|-- scripts/           # 验收与辅助脚本
+|-- storage/           # 上传文件与本地运行产物
 |-- .env.example
 |-- requirements.txt
 `-- README.md
 ```
 
-## Quick Start
+## 快速开始
 
-### 1. Create and activate a virtual environment
+### 1. 创建并激活虚拟环境
 
-Windows PowerShell:
+Windows PowerShell：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 2. Install dependencies
+### 2. 安装依赖
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+### 3. 配置环境变量
 
-Copy `.env.example` to `.env` and update values as needed.
+将 `.env.example` 复制为 `.env`，再按本地环境修改参数。
 
-Minimal local development options:
+本地开发可选两种最小配置：
 
-- PostgreSQL + pgvector:
-  - use `DATABASE_URL=postgresql://...`
-- SQLite fallback:
-  - use `DATABASE_URL=sqlite:///./optic_rag.db`
+- PostgreSQL + pgvector：
+  - 使用 `DATABASE_URL=postgresql://...`
+- SQLite 回退：
+  - 使用 `DATABASE_URL=sqlite:///./optic_rag.db`
 
-For tests and local deterministic validation, the embedding layer supports:
+为了在本地测试和验收时获得稳定结果，向量层支持：
 
 ```env
 EMBEDDING_PROVIDER=mock
 ```
 
-### 4. Start the service
+### 4. 启动服务
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-Available endpoints after startup:
+启动后可访问：
 
 - `GET /`
 - `GET /health`
 - `GET /docs`
 
-## Main API Endpoints
+## 主要接口
 
-### Files
+### 文件相关
 
 - `POST /api/v1/files/upload`
 - `POST /api/v1/upload`
@@ -107,34 +107,34 @@ Available endpoints after startup:
 - `GET /api/v1/files/{file_id}/queries`
 - `GET /api/v1/files/{file_id}/overview`
 
-### Search
+### 检索问答
 
 - `POST /api/v1/search`
 
-Highlights:
+当前重点返回内容包括：
 
-- citations
+- `citations`
 - `risk_notice`
 - `question_analysis`
-- relation-first answering for `previous_end / next_end / prev_node / next_node`
+- 对 `上一端 / 下一端 / prev_node / next_node` 类问题的关系优先回答
 
-### Extraction
+### 结构化抽取
 
 - `POST /api/v1/extract`
 - `GET /api/v1/extract/schema`
 - `POST /api/v1/extract/{file_id}`
 - `GET /api/v1/extract/{file_id}`
 
-Highlights:
+当前重点返回内容包括：
 
-- structured nodes
+- 结构化节点结果
 - `topology_summary`
 - `cross_page_hint`
 - `review_summary`
 
-## Verification
+## 验证命令
 
-Recommended verification commands:
+推荐按下面顺序做基础验证：
 
 ```powershell
 .\.venv\Scripts\python.exe -c "import app.main; print('app.main import ok')"
@@ -149,9 +149,9 @@ Recommended verification commands:
 .\.venv\Scripts\python.exe scripts\test_stage3_acceptance.py
 ```
 
-## Environment Notes
+## 环境变量说明
 
-Key variables from `.env.example`:
+`.env.example` 中当前重点关注的变量包括：
 
 - `DATABASE_URL`
 - `LLM_PROVIDER`
@@ -164,15 +164,15 @@ Key variables from `.env.example`:
 - `EMBEDDING_MODEL_NAME`
 - `GOOGLE_GENAI_API_KEY`
 
-Current provider support:
+当前已接入或预留的提供方包括：
 
 - `hf`
 - `openai`
 - `google`
-- `mock` for embeddings
+- `mock`，用于本地向量能力验收
 
-## Practical Notes
+## 使用说明
 
-- `storage/` is used for local uploaded files and test artifacts.
-- SQLite is acceptable for local development and tests, but vector retrieval in production is intended for PostgreSQL + pgvector.
-- The backend favors explicit risk and review signals over pretending uncertain results are final.
+- `storage/` 用于保存本地上传文件和运行过程中的临时产物。
+- 本地开发和测试可以使用 SQLite，但生产向量检索目标仍然是 PostgreSQL + pgvector。
+- 当前后端刻意强化风险提示与复核提示，而不是把不确定结果包装成最终结论。
